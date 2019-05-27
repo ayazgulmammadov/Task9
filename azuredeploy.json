@@ -1,0 +1,396 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "secondResourceGroupName": {
+      "type": "string"
+    },
+    "firstVMName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "secondVMName": {
+      "type": "string"
+    },
+    "firstVMAdminUserName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "firstVMAdminPassword": {
+      "type": "securestring"
+    },
+    "secondVMAdminUserName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "secondVMAdminPassword": {
+      "type": "securestring"
+    },
+    "VMWindowsOSVersion": {
+      "type": "string",
+      "defaultValue": "2016-Datacenter",
+      "allowedValues": [
+        "2008-R2-SP1",
+        "2012-Datacenter",
+        "2012-R2-Datacenter",
+        "Windows-Server-Technical-Preview"
+      ]
+    },
+    "firstPublicIPDnsName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "secondPublicIPDnsName": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "variables": {
+    "firstVNetPrefix": "10.0.0.0/16",
+    "secondVNetPrefix": "192.168.0.0/16",
+    "firstVNetSubnetName": "Subnet-1",
+    "secondVNetSubnetName": "Subnet-1",
+    "firstVNetSubnetPrefix": "10.0.0.0/24",
+    "secondVNetSubnetPrefix": "192.168.0.0/24",
+    "VMImagePublisher": "MicrosoftWindowsServer",
+    "VMImageOffer": "WindowsServer",
+    "VMSize": "Standard_D2_v2",
+    "firstVMVnetID": "[resourceId('Microsoft.Network/virtualNetworks', 'firstVNet')]",
+    "secondVMVnetID": "[resourceId(parameters('secondResourceGroupName'), 'Microsoft.Network/virtualNetworks', 'firstVNet')]",
+    "firstVMSubnetRef": "[concat(variables('firstVMVnetID'), '/subnets/', variables('firstVNetSubnetName'))]",
+    "secondVMSubnetRef": "[concat(variables('secondVMVnetID'), '/subnets/', variables('secondVNetSubnetName'))]",
+    "firstVMNicName": "[concat(parameters('firstVMName'), '-NetworkInterface')]",
+    "secondVMNicName": "[concat(parameters('secondVMName'), '-NetworkInterface')]",
+    "firstPublicIPName": "firstPublicIP",
+    "secondPublicIPName": "secondPublicIP"
+  },
+  "resources": [
+    {
+      "name": "NSG-01",
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "apiVersion": "2018-12-01",
+      "properties": {
+        "securityRules": [
+          {
+            "name": "AllowVNetInbound",
+            "properties": {
+              "access": "Allow",
+              "description": "Allow inbound traffic from VNet",
+              "sourceAddressPrefix": "VirtualNetwork",
+              "sourcePortRange": "*",
+              "destinationAddressPrefix": "VirtualNetwork",
+              "destinationPortRange": "*",
+              "protocol": "*",
+              "direction": "Inbound",
+              "priority": 100
+            }
+          },
+          {
+            "name": "BlockAllInbound",
+            "properties": {
+              "access": "Deny",
+              "description": "Deny all inbound traffic",
+              "sourceAddressPrefix": "*",
+              "sourcePortRange": "*",
+              "destinationAddressPrefix": "*",
+              "destinationPortRange": "*",
+              "protocol": "*",
+              "direction": "Inbound",
+              "priority": 101
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "firstVNet",
+      "type": "Microsoft.Network/virtualNetworks",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2016-03-30",
+      "dependsOn": [
+        "NSG-01"
+      ],
+      "tags": {
+        "displayName": "firstVNet"
+      },
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "[variables('firstVNetPrefix')]"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "[variables('firstVNetSubnetName')]",
+            "properties": {
+              "addressPrefix": "[variables('firstVNetSubnetPrefix')]",
+              "networkSecurityGroup": {
+                "id": "[resourceId('Micorosft.Network/networkSecurityGroups', 'NSG-01')]"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "[variables('firstVMNicName')]",
+      "type": "Microsoft.Network/networkInterfaces",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2016-03-30",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', 'firstVNet')]",
+        "[resourceId('Microsoft.Network/publicIPAddresses', variables('firstPublicIPName'))]"
+      ],
+      "tags": {
+        "displayName": "firstVMNic"
+      },
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "subnet": {
+                "id": "[variables('firstVMSubnetRef')]"
+              },
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('firstPublicIPName'))]"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "[parameters('firstVMName')]",
+      "type": "Microsoft.Compute/virtualMachines",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2018-10-01",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/networkInterfaces', variables('firstVMNicName'))]"
+      ],
+      "tags": {
+        "displayName": "firstVM"
+      },
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "[variables('VMSize')]"
+        },
+        "osProfile": {
+          "computerName": "[parameters('firstVMName')]",
+          "adminUsername": "[parameters('firstVMAdminUsername')]",
+          "adminPassword": "[parameters('firstVMAdminPassword')]"
+        },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "[variables('VMImagePublisher')]",
+            "offer": "[variables('VMImageOffer')]",
+            "sku": "[parameters('VMWindowsOSVersion')]",
+            "version": "latest"
+          },
+          "osDisk": {
+            "name": "firstVMOSDisk",
+            "managedDisk": {
+              "storageAccountType": "Standard_LRS"
+            },
+            "caching": "ReadWrite",
+            "createOption": "FromImage"
+          }
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('firstVMNicName'))]"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "[variables('firstPublicIPName')]",
+      "type": "Microsoft.Network/publicIPAddresses",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2016-03-30",
+      "dependsOn": [],
+      "tags": {
+        "displayName": "firstPublicIP"
+      },
+      "properties": {
+        "publicIPAllocationMethod": "Dynamic",
+        "dnsSettings": {
+          "domainNameLabel": "[parameters('firstPublicIPDnsName')]"
+        }
+      }
+    },
+    {
+      "name": "nestedTemplate",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2017-05-10",
+      "resourceGroup": "[parameters('secondResourceGroupName')]",
+      "properties": {
+        "mode": "Incremental",
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {},
+          "variables": {},
+          "resources": [
+            {
+              "name": "NSG-02",
+              "type": "Microsoft.Network/networkSecurityGroups",
+              "apiVersion": "2018-12-01",
+              "properties": {
+                "securityRules": [
+                  {
+                    "name": "AllowVNetInbound",
+                    "properties": {
+                      "access": "Allow",
+                      "description": "Allow inbound traffic from VNet",
+                      "sourceAddressPrefix": "VirtualNetwork",
+                      "sourcePortRange": "*",
+                      "destinationAddressPrefix": "VirtualNetwork",
+                      "destinationPortRange": "*",
+                      "protocol": "*",
+                      "direction": "Inbound",
+                      "priority": 100
+                    }
+                  },
+                  {
+                    "name": "BlockAllInbound",
+                    "properties": {
+                      "access": "Deny",
+                      "description": "Deny all inbound traffic",
+                      "sourceAddressPrefix": "*",
+                      "sourcePortRange": "*",
+                      "destinationAddressPrefix": "*",
+                      "destinationPortRange": "*",
+                      "protocol": "*",
+                      "direction": "Inbound",
+                      "priority": 101
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "secondVNet",
+              "type": "Microsoft.Network/virtualNetworks",
+              "location": "[resourceGroup().location]",
+              "apiVersion": "2016-03-30",
+              "dependsOn": [],
+              "tags": {
+                "displayName": "secondVNet"
+              },
+              "properties": {
+                "addressSpace": {
+                  "addressPrefixes": [
+                    "[variables('secondVNetPrefix')]"
+                  ]
+                },
+                "subnets": [
+                  {
+                    "name": "[variables('secondVNetSubnetName')]",
+                    "properties": {
+                      "addressPrefix": "[variables('secondVNetSubnetPrefix')]"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "[variables('secondVMNicName')]",
+              "type": "Microsoft.Network/networkInterfaces",
+              "location": "[resourceGroup().location]",
+              "apiVersion": "2016-03-30",
+              "dependsOn": [
+                "[resourceId(parameters('secondResourceGroupName'), 'Microsoft.Network/virtualNetworks', 'secondVNet')]",
+                "[resourceId(parameters('secondResourceGroupName'), 'Microsoft.Network/publicIPAddresses', variables('secondPublicIPName'))]"
+              ],
+              "tags": {
+                "displayName": "secondVMNic"
+              },
+              "properties": {
+                "ipConfigurations": [
+                  {
+                    "name": "ipconfig1",
+                    "properties": {
+                      "privateIPAllocationMethod": "Dynamic",
+                      "subnet": {
+                        "id": "[variables('secondVMSubnetRef')]"
+                      },
+                      "publicIPAddress": {
+                        "id": "[resourceId(parameters('secondResourceGroupName'), 'Microsoft.Network/publicIPAddresses', variables('secondPublicIPName'))]"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "[parameters('firstVMName')]",
+              "type": "Microsoft.Compute/virtualMachines",
+              "location": "[resourceGroup().location]",
+              "apiVersion": "2015-06-15",
+              "dependsOn": [
+                "[resourceId(parameters('secondResourceGroupName'), 'Microsoft.Network/networkInterfaces', variables('secondVMNicName'))]"
+              ],
+              "tags": {
+                "displayName": "secondVM"
+              },
+              "properties": {
+                "hardwareProfile": {
+                  "vmSize": "[variables('VMSize')]"
+                },
+                "osProfile": {
+                  "computerName": "[parameters('secondVMName')]",
+                  "adminUsername": "[parameters('secondVMAdminUsername')]",
+                  "adminPassword": "[parameters('secondVMAdminPassword')]"
+                },
+                "storageProfile": {
+                  "imageReference": {
+                    "publisher": "[variables('VMImagePublisher')]",
+                    "offer": "[variables('VMImageOffer')]",
+                    "sku": "[parameters('VMWindowsOSVersion')]",
+                    "version": "latest"
+                  },
+                  "osDisk": {
+                    "name": "secondVMOSDisk",
+                    "managedDisk": {
+                      "storageAccountType": "Standard_LRS"
+                    },
+                    "caching": "ReadWrite",
+                    "createOption": "FromImage"
+                  }
+                },
+                "networkProfile": {
+                  "networkInterfaces": [
+                    {
+                      "id": "[resourceId(parameters('secondResourceGroupName'), 'Microsoft.Network/networkInterfaces', variables('secondVMNicName'))]"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "[variables('secondPublicIPName')]",
+              "type": "Microsoft.Network/publicIPAddresses",
+              "location": "[resourceGroup().location]",
+              "apiVersion": "2016-03-30",
+              "dependsOn": [],
+              "tags": {
+                "displayName": "secondPublicIP"
+              },
+              "properties": {
+                "publicIPAllocationMethod": "Dynamic",
+                "dnsSettings": {
+                  "domainNameLabel": "[parameters('secondPublicIPDnsName')]"
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "outputs": {}
+}
