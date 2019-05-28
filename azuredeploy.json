@@ -333,7 +333,7 @@
               "name": "[parameters('secondVMName')]",
               "type": "Microsoft.Compute/virtualMachines",
               "location": "[resourceGroup().location]",
-              "apiVersion": "2015-06-15",
+              "apiVersion": "2018-10-01",
               "dependsOn": [
                 "[resourceId(parameters('secondResourceGroupName'), 'Microsoft.Network/networkInterfaces', variables('secondVMNicName'))]"
               ],
