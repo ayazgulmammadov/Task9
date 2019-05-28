@@ -22,6 +22,12 @@
     },
     "secondVMAdminPassword": {
       "value": "A123456789a"
+    },
+    "firstPublicIPDnsName": {
+      "value": "ayaz1vm"
+    },
+    "secondPublicIPDnsName": {
+      "value": "ayaz2vm"
     }
   }
 }
