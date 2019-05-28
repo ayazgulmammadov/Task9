@@ -57,7 +57,7 @@
     "VMImageOffer": "WindowsServer",
     "VMSize": "Standard_D2_v2",
     "firstVMVnetID": "[resourceId('Microsoft.Network/virtualNetworks', 'firstVNet')]",
-    "secondVMVnetID": "[resourceId(parameters('secondResourceGroupName'), 'Microsoft.Network/virtualNetworks', 'firstVNet')]",
+    "secondVMVnetID": "[resourceId(parameters('secondResourceGroupName'), 'Microsoft.Network/virtualNetworks', 'secondVNet')]",
     "firstVMSubnetRef": "[concat(variables('firstVMVnetID'), '/subnets/', variables('firstVNetSubnetName'))]",
     "secondVMSubnetRef": "[concat(variables('secondVMVnetID'), '/subnets/', variables('secondVNetSubnetName'))]",
     "firstVMNicName": "[concat(parameters('firstVMName'), '-NetworkInterface')]",
