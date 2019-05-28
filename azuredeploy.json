@@ -44,6 +44,18 @@
     "secondPublicIPDnsName": {
       "type": "string",
       "minLength": 1
+    },
+    "_artifactsLocation": {
+      "type": "string",
+      "metadata": {
+        "description": "Auto-generated container in staging storage account to receive post-build staging folder upload"
+      }
+    },
+    "_artifactsLocationSasToken": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Auto-generated token to access _artifactsLocation"
+      }
     }
   },
   "variables": {
@@ -63,7 +75,10 @@
     "firstVMNicName": "[concat(parameters('firstVMName'), '-NetworkInterface')]",
     "secondVMNicName": "[concat(parameters('secondVMName'), '-NetworkInterface')]",
     "firstPublicIPName": "firstPublicIP",
-    "secondPublicIPName": "secondPublicIP"
+    "secondPublicIPName": "secondPublicIP",
+    "configArchiveFolder": "DSC",
+    "vm01configArchiveFileName": "vm01config.zip",
+    "vm02configArchiveFileName": "vm02config.zip"
   },
   "resources": [
     {
@@ -108,7 +123,7 @@
       "name": "firstVNet",
       "type": "Microsoft.Network/virtualNetworks",
       "location": "[resourceGroup().location]",
-      "apiVersion": "2016-03-30",
+      "apiVersion": "2018-12-01",
       "dependsOn": [
         "NSG-01"
       ],
@@ -140,8 +155,7 @@
       "location": "[resourceGroup().location]",
       "apiVersion": "2016-03-30",
       "dependsOn": [
-        "[resourceId('Microsoft.Network/virtualNetworks', 'firstVNet')]",
-        "[resourceId('Microsoft.Network/publicIPAddresses', variables('firstPublicIPName'))]"
+        "[resourceId('Microsoft.Network/virtualNetworks', 'firstVNet')]"
       ],
       "tags": {
         "displayName": "firstVMNic"
@@ -151,12 +165,10 @@
           {
             "name": "ipconfig1",
             "properties": {
-              "privateIPAllocationMethod": "Dynamic",
+              "privateIPAllocationMethod": "Static",
+              "privateIPAddress": "10.0.0.4",
               "subnet": {
                 "id": "[variables('firstVMSubnetRef')]"
-              },
-              "publicIPAddress": {
-                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('firstPublicIPName'))]"
               }
             }
           }
@@ -206,7 +218,40 @@
             }
           ]
         }
-      }
+      },
+      "resources": [
+        {
+          "name": "Microsoft.Powershell.DSC",
+          "type": "extensions",
+          "location": "[resourceGroup().location]",
+          "apiVersion": "2018-10-01",
+          "dependsOn": [
+            "[resourceId('Microsoft.Compute/virtualMachines', parameters('firstVMName'))]"
+          ],
+          "tags": {
+            "displayName": "vm01config"
+          },
+          "properties": {
+            "publisher": "Microsoft.Powershell",
+            "type": "DSC",
+            "typeHandlerVersion": "2.9",
+            "autoUpgradeMinorVersion": true,
+            "settings": {
+              "configuration": {
+                "url": "[concat(parameters('_artifactsLocation'), '/', variables('configArchiveFolder'), '/', variables('vm01configArchiveFileName'))]",
+                "script": "vm01config.ps1",
+                "function": "Main"
+              },
+              "configurationArguments": {
+                "nodeName": "[parameters('firstVMName')]"
+              }
+            },
+            "protectedSettings": {
+              "configurationUrlSasToken": "[parameters('_artifactsLocationSasToken')]"
+            }
+          }
+        }
+      ]
     },
     {
       "name": "[variables('firstPublicIPName')]",
@@ -279,7 +324,7 @@
               "name": "secondVNet",
               "type": "Microsoft.Network/virtualNetworks",
               "location": "[resourceGroup().location]",
-              "apiVersion": "2016-03-30",
+              "apiVersion": "2018-12-01",
               "dependsOn": [],
               "tags": {
                 "displayName": "secondVNet"
@@ -306,8 +351,7 @@
               "location": "[resourceGroup().location]",
               "apiVersion": "2016-03-30",
               "dependsOn": [
-                "[resourceId(parameters('secondResourceGroupName'), 'Microsoft.Network/virtualNetworks', 'secondVNet')]",
-                "[resourceId(parameters('secondResourceGroupName'), 'Microsoft.Network/publicIPAddresses', variables('secondPublicIPName'))]"
+                "[resourceId(parameters('secondResourceGroupName'), 'Microsoft.Network/virtualNetworks', 'secondVNet')]"
               ],
               "tags": {
                 "displayName": "secondVMNic"
@@ -317,12 +361,10 @@
                   {
                     "name": "ipconfig1",
                     "properties": {
-                      "privateIPAllocationMethod": "Dynamic",
+                      "privateIPAllocationMethod": "Static",
+                      "privateIPAddress": "192.168.0.4",
                       "subnet": {
                         "id": "[variables('secondVMSubnetRef')]"
-                      },
-                      "publicIPAddress": {
-                        "id": "[resourceId(parameters('secondResourceGroupName'), 'Microsoft.Network/publicIPAddresses', variables('secondPublicIPName'))]"
                       }
                     }
                   }
@@ -372,7 +414,40 @@
                     }
                   ]
                 }
-              }
+              },
+              "resources": [
+                {
+                  "name": "Microsoft.Powershell.DSC",
+                  "type": "extensions",
+                  "location": "[resourceGroup().location]",
+                  "apiVersion": "2018-10-01",
+                  "dependsOn": [
+                    "[resourceId(parameters('secondResourceGroupName'), 'Microsoft.Compute/virtualMachines', parameters('secondVMName'))]"
+                  ],
+                  "tags": {
+                    "displayName": "vm02config"
+                  },
+                  "properties": {
+                    "publisher": "Microsoft.Powershell",
+                    "type": "DSC",
+                    "typeHandlerVersion": "2.9",
+                    "autoUpgradeMinorVersion": true,
+                    "settings": {
+                      "configuration": {
+                        "url": "[concat(parameters('_artifactsLocation'), '/', variables('configArchiveFolder'), '/', variables('vm02configArchiveFileName'))]",
+                        "script": "vm02config.ps1",
+                        "function": "Main"
+                      },
+                      "configurationArguments": {
+                        "nodeName": "[parameters('secondVMName')]"
+                      }
+                    },
+                    "protectedSettings": {
+                      "configurationUrlSasToken": "[parameters('_artifactsLocationSasToken')]"
+                    }
+                  }
+                }
+              ]
             },
             {
               "name": "[variables('secondPublicIPName')]",
