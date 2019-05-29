@@ -1,7 +1,7 @@
 ﻿$firstResourceGroup = Get-AzureRmResourceGroup -Name 'task09-01-rg'
 $secondResourceGroup = Get-AzureRmResourceGroup -Name 'task09-02-rg'
 
-$VNet1 = Get-AzureRmVirtualNetwork -ResourceGroupName $firstResourceGroup.ResourceGroupName
+$VNet1 = Get-AzureRmVirtualNetwork -ResourceGroupName $firstResourceGroup.ResourceGroupName 
 $VNet2 = Get-AzureRmVirtualNetwork -ResourceGroupName $secondResourceGroup.ResourceGroupName
 
 $publicIP1 = Get-AzureRmPublicIpAddress -ResourceGroupName $firstResourceGroup.ResourceGroupName
