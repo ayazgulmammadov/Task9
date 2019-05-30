@@ -37,14 +37,6 @@
         "Windows-Server-Technical-Preview"
       ]
     },
-    "firstPublicIPDnsName": {
-      "type": "string",
-      "minLength": 1
-    },
-    "secondPublicIPDnsName": {
-      "type": "string",
-      "minLength": 1
-    },
     "_artifactsLocation": {
       "type": "string",
       "metadata": {
@@ -64,14 +56,18 @@
     "firstVNetSubnetName": "Subnet-1",
     "secondVNetSubnetName": "Subnet-1",
     "firstVNetSubnetPrefix": "10.0.0.0/24",
+    "firstVNetGWSubnetPrefix": "10.0.1.0/24",
     "secondVNetSubnetPrefix": "192.168.0.0/24",
+    "secondVNetGWSubnetPrefix": "192.168.1.0/24",
     "VMImagePublisher": "MicrosoftWindowsServer",
     "VMImageOffer": "WindowsServer",
     "VMSize": "Standard_D2_v2",
     "firstVMVnetID": "[resourceId('Microsoft.Network/virtualNetworks', 'firstVNet')]",
     "secondVMVnetID": "[resourceId(parameters('secondResourceGroupName'), 'Microsoft.Network/virtualNetworks', 'secondVNet')]",
     "firstVMSubnetRef": "[concat(variables('firstVMVnetID'), '/subnets/', variables('firstVNetSubnetName'))]",
+    "firstGWSubnetRef": "[concat(variables('firstVMVnetID'), '/subnets/', 'GatewaySubnet')]",
     "secondVMSubnetRef": "[concat(variables('secondVMVnetID'), '/subnets/', variables('secondVNetSubnetName'))]",
+    "secondGWSubnetRef": "[concat(variables('secondVMVnetID'), '/subnets/', 'GatewaySubnet')]",
     "firstVMNicName": "[concat(parameters('firstVMName'), '-NetworkInterface')]",
     "secondVMNicName": "[concat(parameters('secondVMName'), '-NetworkInterface')]",
     "firstPublicIPName": "firstPublicIP",
@@ -120,6 +116,34 @@
       }
     },
     {
+      "name": "GW-01",
+      "type": "Microsoft.Network/virtualNetworkGateways",
+      "apiVersion": "2018-11-01",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/publicIPAddresses', variables('firstPublicIPName'))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', 'firstVNet')]"
+      ],
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "GWconfig1",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "subnet": {
+                "id": "[variables('firstGWSubnetRef')]"
+              },
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('firstPublicIPName'))]"
+              }
+            }
+          }
+        ],
+        "gatewayType": "Vpn",
+        "vpnType": "RouteBased"
+      }
+    },
+    {
       "name": "firstVNet",
       "type": "Microsoft.Network/virtualNetworks",
       "location": "[resourceGroup().location]",
@@ -144,6 +168,12 @@
               "networkSecurityGroup": {
                 "id": "[resourceId('Micorosft.Network/networkSecurityGroups', 'NSG-01')]"
               }
+            }
+          },
+          {
+            "name": "GatewaySubnet",
+            "properties": {
+              "addressPrefix": "[variables('firstVNetGWSubnetPrefix')]"
             }
           }
         ]
@@ -263,10 +293,7 @@
         "displayName": "firstPublicIP"
       },
       "properties": {
-        "publicIPAllocationMethod": "Dynamic",
-        "dnsSettings": {
-          "domainNameLabel": "[parameters('firstPublicIPDnsName')]"
-        }
+        "publicIPAllocationMethod": "Dynamic"
       }
     },
     {
@@ -321,11 +348,41 @@
               }
             },
             {
+              "name": "GW-02",
+              "type": "Microsoft.Network/virtualNetworkGateways",
+              "apiVersion": "2018-11-01",
+              "location": "[resourceGroup().location]",
+              "dependsOn": [
+                "[resourceId(parameters('secondResourceGroupName'), 'Microsoft.Network/publicIPAddresses', variables('secondPublicIPName'))]",
+                "[resourceId(parameters('secondResourceGroupName'), 'Microsoft.Network/virtualNetworks', 'secondVNet')]"
+              ],
+              "properties": {
+                "ipConfigurations": [
+                  {
+                    "name": "GWconfig1",
+                    "properties": {
+                      "privateIPAllocationMethod": "Dynamic",
+                      "subnet": {
+                        "id": "[variables('secondGWSubnetRef')]"
+                      },
+                      "publicIPAddress": {
+                        "id": "[resourceId(parameters('secondResourceGroupName'), 'Microsoft.Network/publicIPAddresses', variables('secondPublicIPName'))]"
+                      }
+                    }
+                  }
+                ],
+                "gatewayType": "Vpn",
+                "vpnType": "RouteBased"
+              }
+            },
+            {
               "name": "secondVNet",
               "type": "Microsoft.Network/virtualNetworks",
               "location": "[resourceGroup().location]",
               "apiVersion": "2018-12-01",
-              "dependsOn": [],
+              "dependsOn": [
+                "[resourceId(parameters('secondResourceGroupName'), 'Microsoft.Network/networkSecurityGroups', 'NSG-02')]"
+              ],
               "tags": {
                 "displayName": "secondVNet"
               },
@@ -339,7 +396,16 @@
                   {
                     "name": "[variables('secondVNetSubnetName')]",
                     "properties": {
-                      "addressPrefix": "[variables('secondVNetSubnetPrefix')]"
+                      "addressPrefix": "[variables('secondVNetSubnetPrefix')]",
+                      "networkSecurityGroup": {
+                        "id": "[resourceId(parameters('secondResourceGroupName'), 'Microsoft.Network/networkSecurityGroups', 'NSG-02')]"
+                      }
+                    }
+                  },
+                  {
+                    "name": "GatewaySubnet",
+                    "properties": {
+                      "addressPrefix": "[variables('secondVNetGWSubnetPrefix')]"
                     }
                   }
                 ]
@@ -459,10 +525,7 @@
                 "displayName": "secondPublicIP"
               },
               "properties": {
-                "publicIPAllocationMethod": "Dynamic",
-                "dnsSettings": {
-                  "domainNameLabel": "[parameters('secondPublicIPDnsName')]"
-                }
+                "publicIPAllocationMethod": "Dynamic"
               }
             }
           ]
